@@ -1,2 +1,2 @@
 # ctsuki
-Better tsuki, built in C
+Better tsuki (pronounced si-sooki), built in C
