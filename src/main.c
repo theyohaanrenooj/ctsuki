@@ -1,47 +1,134 @@
-#include <GLFW/glfw3.h>
-#include <stdio.h>
-#include <stdlib.h>
+#include "tsuki.h"
 
-#define WIDTH 800
-#define HEIGHT 800
+void input();
+void draw();
 
-void framebufSizeCallback(GLFWwindow* window, int width, int height);
-void processInput(GLFWwindow* window);
+const char *vertexShaderSource = "#version 330 core\n"
+    "layout (location = 0) in vec3 aPos;\n"
+    "uniform vec2 uOffset;\n"
+    "void main()\n"
+    "{\n"
+    "   vec3 pos = aPos;\n"
+    "   pos.xy += uOffset;\n"
+    "   gl_Position = vec4(pos, 1.0);\n"
+    "}\n\0";
+const char *fragmentShaderSource = "#version 330 core\n"
+    "out vec4 FragColor;\n"
+    "void main()\n"
+    "{\n"
+    "   FragColor = vec4(1.0f, 0.5f, 0.2f, 1.0f);\n"
+    "}\n\0";
+
+unsigned int VBO, VAO, EBO;
+unsigned int shaderProgram;
+int offsetLoc;
+float x,y;
 
 int main(int argc, char *argv[]) {
-    if (!glfwInit()) {printf("glfw failed it initialize\n"); return -1;};
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
-    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
-    GLFWwindow* window = glfwCreateWindow(WIDTH,HEIGHT,"test",NULL,NULL);
-    if (window == NULL) {
-        printf("failed to create window!\n");
-        glfwTerminate();
-        return -1;
+    if (initTsuki("sup") != 0) {return -1;}
+
+// vertex shader
+    unsigned int vertexShader = glCreateShader(GL_VERTEX_SHADER);
+    glShaderSource(vertexShader, 1, &vertexShaderSource, NULL);
+    glCompileShader(vertexShader);
+    // check for shader compile errors
+    int success;
+    char infoLog[512];
+    glGetShaderiv(vertexShader, GL_COMPILE_STATUS, &success);
+    if (!success)
+    {
+        glGetShaderInfoLog(vertexShader, 512, NULL, infoLog);
+        printf("ERROR::SHADER::VERTEX::COMPILATION_FAILED\n");
     }
-    glfwMakeContextCurrent(window);
-    glfwSetFramebufferSizeCallback(window, framebufSizeCallback);
-
-    while(!glfwWindowShouldClose(window)) {
-        processInput(window);
-
-        glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
-        glClear(GL_COLOR_BUFFER_BIT);
-
-        glfwSwapBuffers(window);
-        glfwPollEvents();
+    // fragment shader
+    unsigned int fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
+    glShaderSource(fragmentShader, 1, &fragmentShaderSource, NULL);
+    glCompileShader(fragmentShader);
+    // check for shader compile errors
+    glGetShaderiv(fragmentShader, GL_COMPILE_STATUS, &success);
+    if (!success)
+    {
+        glGetShaderInfoLog(fragmentShader, 512, NULL, infoLog);
+        printf("ERROR::SHADER::FRAGMENT::COMPILATION_FAILED\n");
     }
+    // link shaders
+    shaderProgram = glCreateProgram();
+    glAttachShader(shaderProgram, vertexShader);
+    glAttachShader(shaderProgram, fragmentShader);
+    glLinkProgram(shaderProgram);
+    offsetLoc = glGetUniformLocation(shaderProgram, "uOffset");
 
+    // check for linking errors
+    glGetProgramiv(shaderProgram, GL_LINK_STATUS, &success);
+    if (!success) {
+        glGetProgramInfoLog(shaderProgram, 512, NULL, infoLog);
+        printf("ERROR::SHADER::PROGRAM::LINKING_FAILED\n");
+    }
+    glDeleteShader(vertexShader);
+    glDeleteShader(fragmentShader);
+
+    // set up vertex data (and buffer(s)) and configure vertex attributes
+    // ------------------------------------------------------------------
+    float wi = pxToGl(32.0f,(float)tsuki_win_w);
+    float he = pxToGl(32.0f,(float)tsuki_win_h);
+    float vertices[] = {
+         wi,  he, 0.0f,  // top right
+         wi, -he, 0.0f,  // bottom right
+        -wi, -he, 0.0f,  // bottom left
+        -wi,  he, 0.0f   // top left 
+    };
+    unsigned int indices[] = {  // note that we start from 0!
+        0, 1, 3,  // first Triangle
+        1, 2, 3   // second Triangle
+    };
+    glGenVertexArrays(1, &VAO);
+    glGenBuffers(1, &VBO);
+    glGenBuffers(1, &EBO);
+    // bind the Vertex Array Object first, then bind and set vertex buffer(s), and then configure vertex attributes(s).
+    glBindVertexArray(VAO);
+
+    glBindBuffer(GL_ARRAY_BUFFER, VBO);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
+
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+    glEnableVertexAttribArray(0);
+    glBindBuffer(GL_ARRAY_BUFFER, 0); 
+    glBindVertexArray(0); 
+
+    // running game loop
+    runTsuki(*input,*draw);
+
+    glDeleteVertexArrays(1, &VAO);
+    glDeleteBuffers(1, &VBO);
+    glDeleteBuffers(1, &EBO);
+    glDeleteProgram(shaderProgram);
     glfwTerminate();
     return 0;
 }
 
-void framebufSizeCallback(GLFWwindow* window, int width, int height) {
-    glViewport(0,0,width, height);
+void input() {
+    if(glfwGetKey(tsuki_win, GLFW_KEY_ESCAPE) == GLFW_PRESS)
+        glfwSetWindowShouldClose(tsuki_win, true);
+    if (glfwGetKey(tsuki_win, GLFW_KEY_W) == GLFW_PRESS)
+        y += 0.01f;
+    if (glfwGetKey(tsuki_win, GLFW_KEY_S) == GLFW_PRESS)
+        y -= 0.01f;
+    if (glfwGetKey(tsuki_win, GLFW_KEY_A) == GLFW_PRESS)
+        x -= 0.01f;
+    if (glfwGetKey(tsuki_win, GLFW_KEY_D) == GLFW_PRESS)
+        x += 0.01f;
 }
 
-void processInput(GLFWwindow* window) {
-    if(glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
-        glfwSetWindowShouldClose(window, true);
+void draw() {
+    glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
+    glClear(GL_COLOR_BUFFER_BIT);
+
+    glUseProgram(shaderProgram);
+    glUniform2f(offsetLoc, x, y);
+    glBindVertexArray(VAO);
+    glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT,0);
 }

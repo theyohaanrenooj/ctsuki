@@ -1,7 +1,18 @@
-main: main.o
-	cc -o main main.o -lglfw -lGL -ldl -lpthread
-main.o: src/main.c
-	cc -c src/main.c -o main.o 
+all: main
 
-clean: main.o
-	rm -f main.o
+main: main.o tsuki.o glad.o utils.o
+	cc -o $@ $^ -lglfw -lGL -ldl -lpthread
+
+main.o: src/main.c src/tsuki.h
+	cc -c $< -o $@ -I./glad/include
+tsuki.o: src/tsuki.c src/tsuki.h
+	cc -c $< -o $@ -I./glad/include
+utils.o: src/utils.c src/utils.h
+	cc -c $< -o $@
+
+glad.o: glad/src/glad.c
+	cc -c $< -o $@ -I./glad/include
+
+
+clean:
+	rm -f main main.o tsuki.o glad.o utils.o
