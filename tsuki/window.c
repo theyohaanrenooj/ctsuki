@@ -1,8 +1,4 @@
-#include "tsuki.h"
-
-int tsuki_win_w;
-int tsuki_win_h;
-GLFWwindow* tsuki_win;
+#include "window.h"
 
 void framebufSizeCallback(GLFWwindow *window,int w, int h) {
     glViewport(0,0,w,h);    
